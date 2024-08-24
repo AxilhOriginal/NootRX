@@ -1,5 +1,5 @@
-//! Copyright © 2023 ChefKiss Inc. Licensed under the Thou Shalt Not Profit License version 1.5.
-//! See LICENSE for details.
+// Copyright © 2023-2024 ChefKiss. Licensed under the Thou Shalt Not Profit License version 1.5.
+// See LICENSE for details.
 
 #pragma once
 #include <Headers/kern_util.hpp>
@@ -79,7 +79,7 @@ static constexpr Model dev73FF[] = {
     {0xC3, "AMD Radeon RX 6600M"},
     {0xC7, "AMD Radeon RX 6600"},
     {0xCB, "AMD Radeon RX 6600S"},
-    {0xDF, "AMD Radeon RX 6570 GRE"},
+    {0xDF, "AMD Radeon RX 6750 GRE"},
 };
 
 static constexpr DevicePair devices[] = {

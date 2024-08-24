@@ -1,11 +1,10 @@
-//! Copyright © 2023 ChefKiss Inc. Licensed under the Thou Shalt Not Profit License version 1.5.
-//! See LICENSE for details.
+// Copyright © 2023-2024 ChefKiss. Licensed under the Thou Shalt Not Profit License version 1.5.
+// See LICENSE for details.
 
 #include "NootRX.hpp"
 #include <Headers/kern_api.hpp>
 #include <Headers/kern_version.hpp>
 #include <Headers/plugin_start.hpp>
-#include <IOKit/IOCatalogue.h>
 
 static NootRXMain nrx;
 
@@ -22,6 +21,6 @@ PluginConfiguration ADDPR(config) {
     nullptr,
     0,
     KernelVersion::BigSur,
-    KernelVersion::Sonoma,
+    KernelVersion::Sequoia,
     []() { nrx.init(); },
 };

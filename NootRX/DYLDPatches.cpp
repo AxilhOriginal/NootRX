@@ -1,11 +1,9 @@
-//! Copyright © 2023 ChefKiss Inc. Licensed under the Thou Shalt Not Profit License version 1.5.
-//! See LICENSE for details.
+// Copyright © 2023-2024 ChefKiss. Licensed under the Thou Shalt Not Profit License version 1.5.
+// See LICENSE for details.
 
 #include "DYLDPatches.hpp"
-#include "NootRX.hpp"
 #include <Headers/kern_api.hpp>
 #include <Headers/kern_devinfo.hpp>
-#include <IOKit/IODeviceTreeSupport.h>
 
 DYLDPatches *DYLDPatches::callback = nullptr;
 
