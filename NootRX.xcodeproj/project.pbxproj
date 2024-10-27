@@ -45,6 +45,7 @@
 		1C748C271C21952C0024EED2 /* NootRX.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NootRX.kext; sourceTree = BUILT_PRODUCTS_DIR; };
 		1C748C2C1C21952C0024EED2 /* Plugin.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Plugin.cpp; sourceTree = "<group>"; };
 		1C748C2E1C21952C0024EED2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4043B2012C7A0ABA005F31D1 /* com.apple.kext.AMDRadeonX6000Framebuffer.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = com.apple.kext.AMDRadeonX6000Framebuffer.xml; sourceTree = "<group>"; };
 		404624A32BD4FAFE00677022 /* gc_10_3_4_rlc_srlist_gpm_mem.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = gc_10_3_4_rlc_srlist_gpm_mem.bin; sourceTree = "<group>"; };
 		404624A42BD4FAFE00677022 /* gc_10_3_se0_tap_delays.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = gc_10_3_se0_tap_delays.bin; sourceTree = "<group>"; };
 		404624A52BD4FAFE00677022 /* gc_10_3_global_tap_delays.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = gc_10_3_global_tap_delays.bin; sourceTree = "<group>"; };
@@ -93,7 +94,7 @@
 		CE405ED21E49F9FC00AA0B3D /* kern_api.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = kern_api.hpp; sourceTree = "<group>"; };
 		CE405ED81E4A080700AA0B3D /* plugin_start.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = plugin_start.cpp; sourceTree = "<group>"; };
 		CE405EDA1E4A080F00AA0B3D /* plugin_start.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = plugin_start.hpp; sourceTree = "<group>"; };
-		CE8DA0822517C41A008C44E8 /* libkmod.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libkmod.a; path = ../Lilu/MacKernelSDK/Library/x86_64/libkmod.a; sourceTree = "<group>"; };
+		CE8DA0822517C41A008C44E8 /* libkmod.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libkmod.a; path = MacKernelSDK/Library/x86_64/libkmod.a; sourceTree = SOURCE_ROOT; };
 		D51187E52A6FB66800F23522 /* HWLibs.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = HWLibs.hpp; sourceTree = "<group>"; };
 		D51187E62A6FB66800F23522 /* HWLibs.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = HWLibs.cpp; sourceTree = "<group>"; };
 		D51187E72A6FB66800F23522 /* Model.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = Model.hpp; sourceTree = "<group>"; };
@@ -220,6 +221,7 @@
 				D51D13B62AE51906008D0441 /* atidmcub_instruction_dcn302.bin */,
 				D53A4C1A2AAA620300ADD844 /* ativvaxy_vcn3.dat */,
 				407EC2702C6AE97B00A5BEA4 /* com.apple.kext.AMDRadeonX6000.xml */,
+				4043B2012C7A0ABA005F31D1 /* com.apple.kext.AMDRadeonX6000Framebuffer.xml */,
 				407EC2722C6AE97B00A5BEA4 /* com.apple.kext.AMDRadeonX6000HWServices.xml */,
 				D53A4C1B2AAA620300ADD844 /* gc_10_3_2_ce_ucode.bin */,
 				D53A4C152AAA620300ADD844 /* gc_10_3_2_global_tap_delays.bin */,
@@ -316,7 +318,7 @@
 				CE405EDA1E4A080F00AA0B3D /* plugin_start.hpp */,
 			);
 			name = Headers;
-			path = Lilu.kext/Contents/Resources/Headers;
+			path = Lilu/Lilu/Headers;
 			sourceTree = SOURCE_ROOT;
 		};
 		CE405EC51E49DD7100AA0B3D /* Library */ = {
@@ -325,7 +327,7 @@
 				CE405ED81E4A080700AA0B3D /* plugin_start.cpp */,
 			);
 			name = Library;
-			path = Lilu.kext/Contents/Resources/Library;
+			path = Lilu/Lilu/Library;
 			sourceTree = SOURCE_ROOT;
 		};
 		CE405EC81E49DD7B00AA0B3D /* SDK */ = {
@@ -523,7 +525,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Lilu.kext/Contents/Resources",
+					"$(PROJECT_DIR)/Lilu/Lilu",
 					"$(PROJECT_DIR)/MacKernelSDK/Headers",
 				);
 				KERNEL_EXTENSION_HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/MacKernelSDK/Headers";
@@ -582,13 +584,13 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HEADER_SEARCH_PATHS = (
-					"$(PROJECT_DIR)/Lilu.kext/Contents/Resources",
+					"$(PROJECT_DIR)/Lilu/Lilu",
 					"$(PROJECT_DIR)/MacKernelSDK/Headers",
 				);
 				KERNEL_EXTENSION_HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/MacKernelSDK/Headers";
 				KERNEL_FRAMEWORK_HEADERS = "$(PROJECT_DIR)/MacKernelSDK/Headers";
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/MacKernelSDK/Library/x86_64";
-				LLVM_LTO = YES_THIN;
+				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
 				OTHER_CFLAGS = (
 					"-Wextra",

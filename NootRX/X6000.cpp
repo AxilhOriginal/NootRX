@@ -9,27 +9,36 @@
 
 static const char *pathRadeonX6000 = "/System/Library/Extensions/AMDRadeonX6000.kext/Contents/MacOS/AMDRadeonX6000";
 
-static KernelPatcher::KextInfo kextRadeonX6000 {"com.apple.kext.AMDRadeonX6000", &pathRadeonX6000, 1, {}, {},
-    KernelPatcher::KextInfo::Unloaded};
+static KernelPatcher::KextInfo kextRadeonX6000 {
+    "com.apple.kext.AMDRadeonX6000",
+    &pathRadeonX6000,
+    1,
+    {},
+    {},
+    KernelPatcher::KextInfo::Unloaded,
+};
 
 X6000 *X6000::callback = nullptr;
 
 void X6000::init() {
+    SYSLOG("X6000", "Module initialised");
+
     callback = this;
+
     lilu.onKextLoadForce(&kextRadeonX6000);
 }
 
 bool X6000::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t slide, size_t size) {
     if (kextRadeonX6000.loadIndex == id) {
-        NootRXMain::callback->setRMMIOIfNecessary();
+        NootRXMain::callback->ensureRMMIO();
 
-        if (!checkKernelArgument("-NRXNoVCN")) {
+        if (NootRXMain::callback->attributes.isVCNEnabled()) {
             RouteRequestPlus request {"__ZN35AMDRadeonX6000_AMDAccelVideoContext9getHWInfoEP13sHardwareInfo",
                 wrapGetHWInfo, this->orgGetHWInfo};
             PANIC_COND(!request.route(patcher, id, slide, size), "X6000", "Failed to route getHWInfo");
         }
 
-        if (NootRXMain::callback->chipType == ChipType::Navi22 && getKernelVersion() >= KernelVersion::Ventura) {
+        if (NootRXMain::callback->attributes.isNavi22() && NootRXMain::callback->attributes.isVenturaAndLater()) {
             const LookupPatchPlus patch = {&kextRadeonX6000, kHwlConvertChipFamilyOriginal,
                 kHwlConvertChipFamilyOriginalMask, kHwlConvertChipFamilyPatched, 1};
             PANIC_COND(!patch.apply(patcher, slide, size), "X6000",
@@ -44,6 +53,6 @@ bool X6000::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sli
 
 IOReturn X6000::wrapGetHWInfo(IOService *accelVideoCtx, void *hwInfo) {
     auto ret = FunctionCast(wrapGetHWInfo, callback->orgGetHWInfo)(accelVideoCtx, hwInfo);
-    getMember<UInt16>(hwInfo, 0x4) = NootRXMain::callback->chipType == ChipType::Navi21 ? 0x73BF : 0x73FF;
+    getMember<UInt16>(hwInfo, 0x4) = NootRXMain::callback->attributes.isNavi21() ? 0x73BF : 0x73FF;
     return ret;
 }

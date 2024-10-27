@@ -16,19 +16,46 @@ static const char *pathRadeonX6800HWLibs = "/System/Library/Extensions/AMDRadeon
 static const char *pathRadeonX6810HWLibs = "/System/Library/Extensions/AMDRadeonX6000HWServices.kext/Contents/PlugIns/"
                                            "AMDRadeonX6810HWLibs.kext/Contents/MacOS/AMDRadeonX6810HWLibs";
 
-static KernelPatcher::KextInfo kextRadeonX6000HWServices {"com.apple.kext.AMDRadeonX6000HWServices",
-    &pathRadeonX6000HWServices, 1, {}, {}, KernelPatcher::KextInfo::Unloaded};
+static KernelPatcher::KextInfo kextRadeonX6000HWServices {
+    "com.apple.kext.AMDRadeonX6000HWServices",
+    &pathRadeonX6000HWServices,
+    1,
+    {},
+    {},
+    KernelPatcher::KextInfo::Unloaded,
+};
 
-static KernelPatcher::KextInfo kextRadeonX6810HWLibs {"com.apple.kext.AMDRadeonX6810HWLibs", &pathRadeonX6810HWLibs, 1,
-    {}, {}, KernelPatcher::KextInfo::Unloaded};
+static KernelPatcher::KextInfo kextRadeonX6810HWLibs {
+    "com.apple.kext.AMDRadeonX6810HWLibs",
+    &pathRadeonX6810HWLibs,
+    1,
+    {},
+    {},
+    KernelPatcher::KextInfo::Unloaded,
+};
 
-static KernelPatcher::KextInfo kextRadeonX6800HWLibs {"com.apple.kext.AMDRadeonX6800HWLibs", &pathRadeonX6800HWLibs, 1,
-    {}, {}, KernelPatcher::KextInfo::Unloaded};
+static KernelPatcher::KextInfo kextRadeonX6800HWLibs {
+    "com.apple.kext.AMDRadeonX6800HWLibs",
+    &pathRadeonX6800HWLibs,
+    1,
+    {},
+    {},
+    KernelPatcher::KextInfo::Unloaded,
+};
 
 HWLibs *HWLibs::callback = nullptr;
 
 void HWLibs::init() {
+    if (NootRXMain::callback->attributes.isNavi21() || !NootRXMain::callback->attributes.isVenturaAndLater()) {
+        this->pspCommandDataField = 0xAF8;
+    } else {
+        this->pspCommandDataField = 0xB48;
+    }
+
+    SYSLOG("HWLibs", "Module initialised");
+
     callback = this;
+
     lilu.onKextLoadForce(&kextRadeonX6000HWServices);
     lilu.onKextLoadForce(&kextRadeonX6800HWLibs);
     lilu.onKextLoadForce(&kextRadeonX6810HWLibs);
@@ -60,8 +87,12 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
         RouteRequestPlus request {"__ZN38AMDRadeonX6000_AMDRadeonHWServicesNavi16getMatchPropertyEv",
             wrapGetMatchProperty};
         PANIC_COND(!request.route(patcher, id, slide, size), "HWServices", "Failed to route getMatchProperty");
-    } else if ((kextRadeonX6810HWLibs.loadIndex == id) || (kextRadeonX6800HWLibs.loadIndex == id)) {
-        NootRXMain::callback->setRMMIOIfNecessary();
+
+        return true;
+    }
+
+    if (kextRadeonX6810HWLibs.loadIndex == id || kextRadeonX6800HWLibs.loadIndex == id) {
+        NootRXMain::callback->ensureRMMIO();
 
         CAILAsicCapsEntry *orgCapsTable = nullptr;
         CAILDeviceTypeEntry *orgDeviceTypeTable = nullptr;
@@ -78,9 +109,7 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
         SolveRequestPlus solveRequest {"_CAILAsicCapsInitTable", orgCapsInitTable, kCAILAsicCapsInitTablePattern};
         solveRequest.solve(patcher, id, slide, size);
 
-        bool sonoma144 = getKernelVersion() > KernelVersion::Sonoma ||
-                         (getKernelVersion() == KernelVersion::Sonoma && getKernelMinorVersion() >= 4);
-        if (sonoma144) {
+        if (NootRXMain::callback->attributes.isSonoma1404AndLater()) {
             RouteRequestPlus request = {"_psp_cmd_km_submit", wrapPspCmdKmSubmit, this->orgPspCmdKmSubmit,
                 kPspCmdKmSubmitPattern14_4, kPspCmdKmSubmitMask14_4};
             PANIC_COND(!request.route(patcher, id, slide, size), "HWLibs", "Failed to route psp_cmd_km_submit (14.4+)");
@@ -90,8 +119,17 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
             PANIC_COND(!request.route(patcher, id, slide, size), "HWLibs", "Failed to route psp_cmd_km_submit");
         }
 
-        if (NootRXMain::callback->chipType == ChipType::Navi22) {
-            if (sonoma144) {
+        if (ADDPR(debugEnabled)) {
+            RouteRequestPlus request = {"__ZN14AmdTtlServices27cosReadConfigurationSettingEPvP36cos_read_configuration_"
+                                        "setting_inputP37cos_read_configuration_setting_output",
+                wrapCosReadConfigurationSetting, this->orgCosReadConfigurationSetting,
+                kCosReadConfigurationSettingPattern, kCosReadConfigurationSettingPatternMask};
+            PANIC_COND(!request.route(patcher, id, slide, size), "HWLibs",
+                "Failed to route cosReadConfigurationSetting");
+        }
+
+        if (NootRXMain::callback->attributes.isNavi22()) {
+            if (NootRXMain::callback->attributes.isSonoma1404AndLater()) {
                 RouteRequestPlus request = {"_smu_11_0_7_send_message_with_parameter",
                     wrapSmu1107SendMessageWithParameter, this->orgSmu1107SendMessageWithParameter,
                     kSmu1107SendMessageWithParameterPattern14_4, kSmu1107SendMessageWithParameterPatternMask14_4};
@@ -114,54 +152,49 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
             .deviceType = (kextRadeonX6800HWLibs.loadIndex == id) ? 6U : 8,
         };
 
-        UInt32 targetDeviceId = NootRXMain::callback->chipType == ChipType::Navi21 ? 0x73BF : 0x73FF;
-        for (; orgCapsTable->deviceId != 0xFFFFFFFF; orgCapsTable++) {
-            if (orgCapsTable->familyId == AMDGPU_FAMILY_NAVI && orgCapsTable->deviceId == targetDeviceId) {
-                orgCapsTable->deviceId = NootRXMain::callback->deviceId;
-                orgCapsTable->revision = NootRXMain::callback->revision;
-                orgCapsTable->extRevision =
-                    static_cast<UInt32>(NootRXMain::callback->enumRevision) + NootRXMain::callback->revision;
-                orgCapsTable->pciRevision = NootRXMain::callback->pciRevision;
-                orgCapsTable->caps = ddiCapsNavi2Universal;
-                if (orgCapsInitTable) {
-                    *orgCapsInitTable = {
-                        .familyId = AMDGPU_FAMILY_NAVI,
-                        .deviceId = NootRXMain::callback->deviceId,
-                        .revision = NootRXMain::callback->revision,
-                        .extRevision = static_cast<UInt32>(orgCapsTable->extRevision),
-                        .pciRevision = NootRXMain::callback->pciRevision,
-                        .caps = orgCapsTable->caps,
-                    };
-                }
-                break;
+        UInt32 targetDeviceId = NootRXMain::callback->attributes.isNavi21() ? 0x73BF : 0x73FF;
+        while (true) {
+            PANIC_COND(orgCapsTable->deviceId == 0xFFFFFFFF, "HWLibs", "Failed to find ASIC caps init table entry");
+            if (orgCapsTable->familyId != AMDGPU_FAMILY_NAVI || orgCapsTable->deviceId != targetDeviceId) {
+                orgCapsTable += 1;
+                continue;
             }
+            orgCapsTable->deviceId = NootRXMain::callback->deviceId;
+            orgCapsTable->revNo = NootRXMain::callback->devRevision;
+            orgCapsTable->emulatedRevNo =
+                static_cast<UInt32>(NootRXMain::callback->enumRevision) + NootRXMain::callback->devRevision;
+            orgCapsTable->revId = NootRXMain::callback->pciRevision;
+            orgCapsTable->caps = ddiCapsNavi2Universal;
+            if (orgCapsInitTable) {
+                *orgCapsInitTable = {
+                    .familyId = AMDGPU_FAMILY_NAVI,
+                    .deviceId = NootRXMain::callback->deviceId,
+                    .revision = NootRXMain::callback->devRevision,
+                    .extRevision = static_cast<UInt32>(orgCapsTable->emulatedRevNo),
+                    .pciRevision = NootRXMain::callback->pciRevision,
+                    .caps = orgCapsTable->caps,
+                };
+            }
+            break;
         }
-        PANIC_COND(orgCapsTable->deviceId == 0xFFFFFFFF, "HWLibs", "Failed to find ASIC caps init table entry");
 
-        for (; orgDevCapTable->familyId; orgDevCapTable++) {
-            if (orgDevCapTable->familyId == AMDGPU_FAMILY_NAVI && orgDevCapTable->deviceId == targetDeviceId) {
-                orgDevCapTable->deviceId = NootRXMain::callback->deviceId;
-                orgDevCapTable->extRevision =
-                    static_cast<UInt64>(NootRXMain::callback->enumRevision) + NootRXMain::callback->revision;
-                orgDevCapTable->revision = DEVICE_CAP_ENTRY_REV_DONT_CARE;
-                orgDevCapTable->enumRevision = DEVICE_CAP_ENTRY_REV_DONT_CARE;
-                switch (NootRXMain::callback->chipType) {
-                    case ChipType::Navi21:
-                        orgDevCapTable->asicGoldenSettings->goldenSettings = goldenSettingsNavi21;
-                        break;
-                    case ChipType::Navi22:
-                        orgDevCapTable->asicGoldenSettings->goldenSettings = goldenSettingsNavi22;
-                        break;
-                    case ChipType::Navi23:
-                        orgDevCapTable->asicGoldenSettings->goldenSettings = goldenSettingsNavi23;
-                        break;
-                    default:
-                        break;
-                }
-                break;
+        while (true) {
+            PANIC_COND(orgDevCapTable->familyId == 0, "HWLibs", "Failed to find device capability table entry");
+            if (orgDevCapTable->familyId != AMDGPU_FAMILY_NAVI || orgDevCapTable->deviceId != targetDeviceId) {
+                orgDevCapTable += 1;
+                continue;
             }
+            orgDevCapTable->deviceId = NootRXMain::callback->deviceId;
+            orgDevCapTable->extRevision =
+                static_cast<UInt64>(NootRXMain::callback->enumRevision) + NootRXMain::callback->devRevision;
+            orgDevCapTable->revision = DEVICE_CAP_ENTRY_REV_DONT_CARE;
+            orgDevCapTable->enumRevision = DEVICE_CAP_ENTRY_REV_DONT_CARE;
+            orgDevCapTable->asicGoldenSettings->goldenSettings =
+                NootRXMain::callback->attributes.isNavi21() ? goldenSettingsNavi21 :
+                NootRXMain::callback->attributes.isNavi22() ? goldenSettingsNavi22 :
+                                                              goldenSettingsNavi23;
+            break;
         }
-        PANIC_COND(!orgDevCapTable->familyId, "HWLibs", "Failed to find device capability table entry");
         MachInfo::setKernelWriting(false, KernelPatcher::kernelWriteLock);
         DBGLOG("HWLibs", "Applied DDI Caps patches");
 
@@ -211,32 +244,26 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
 
         PANIC_COND(MachInfo::setKernelWriting(true, KernelPatcher::kernelWriteLock) != KERN_SUCCESS, "HWLibs",
             "Failed to enable kernel writing");
-        switch (NootRXMain::callback->chipType) {
-            case ChipType::Navi21:
-                hijackMemCpyBlock(0x00001310, 0xFFFFFFFF, fakecpyNavi21Kdb);
-                hijackMemCpyBlock(0x00014350, 0xFFFFFFFF, fakecpyNavi21Sos);
-                hijackMemCpyBlock(0x00000770, 0xFFFC0FFF, fakecpyNavi21SysDrv);
-                hijackMemCpyBlock(0x000003A0, 0xFFFFFFFF, fakecpyNavi21TosSpl);
-                break;
-            case ChipType::Navi22:
-                hijackMemCpyBlock(0x00001070, 0xFFFFFFFF, fakecpyNavi22Kdb);
-                hijackMemCpyBlock(0x00014350, 0xFFFFFFFF, fakecpyNavi22Sos);
-                hijackMemCpyBlock(0x00010790, 0xFFFF0FFF, fakecpyNavi22SysDrv);
-                hijackMemCpyBlock(0x000003A0, 0xFFFFFFFF, fakecpyNavi22TosSpl);
-                break;
-            case ChipType::Navi23:
-                hijackMemCpyBlock(0x00001070, 0xFFFFFFFF, fakecpyNavi23Kdb);
-                hijackMemCpyBlock(0x00014350, 0xFFFFFFFF, fakecpyNavi23Sos);
-                hijackMemCpyBlock(0x00010790, 0xFFFF0FFF, fakecpyNavi23SysDrv);
-                hijackMemCpyBlock(0x000003A0, 0xFFFFFFFF, fakecpyNavi23TosSpl);
-                break;
-            default:
-                break;
+        if (NootRXMain::callback->attributes.isNavi21()) {
+            hijackMemCpyBlock(0x00001310, 0xFFFFFFFF, fakecpyNavi21Kdb);
+            hijackMemCpyBlock(0x00014350, 0xFFFFFFFF, fakecpyNavi21Sos);
+            hijackMemCpyBlock(0x00000770, 0xFFFC0FFF, fakecpyNavi21SysDrv);
+            hijackMemCpyBlock(0x000003A0, 0xFFFFFFFF, fakecpyNavi21TosSpl);
+        } else if (NootRXMain::callback->attributes.isNavi22()) {
+            hijackMemCpyBlock(0x00001070, 0xFFFFFFFF, fakecpyNavi22Kdb);
+            hijackMemCpyBlock(0x00014350, 0xFFFFFFFF, fakecpyNavi22Sos);
+            hijackMemCpyBlock(0x00010790, 0xFFFF0FFF, fakecpyNavi22SysDrv);
+            hijackMemCpyBlock(0x000003A0, 0xFFFFFFFF, fakecpyNavi22TosSpl);
+        } else {
+            hijackMemCpyBlock(0x00001070, 0xFFFFFFFF, fakecpyNavi23Kdb);
+            hijackMemCpyBlock(0x00014350, 0xFFFFFFFF, fakecpyNavi23Sos);
+            hijackMemCpyBlock(0x00010790, 0xFFFF0FFF, fakecpyNavi23SysDrv);
+            hijackMemCpyBlock(0x000003A0, 0xFFFFFFFF, fakecpyNavi23TosSpl);
         }
         MachInfo::setKernelWriting(false, KernelPatcher::kernelWriteLock);
         DBGLOG("HWLibs", "Applied PSP memcpy firmware patches");
 
-        if (NootRXMain::callback->chipType == ChipType::Navi22) {
+        if (NootRXMain::callback->attributes.isNavi22()) {
             const LookupPatchPlus patches[] = {
                 {&kextRadeonX6810HWLibs, kGcSwInitOriginal, kGcSwInitOriginalMask, kGcSwInitPatched,
                     kGcSwInitPatchedMask, 1},
@@ -245,7 +272,7 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
             };
             PANIC_COND(!LookupPatchPlus::applyAll(patcher, patches, slide, size), "HWLibs",
                 "Failed to apply Navi 22 patches (all vers)");
-            if (sonoma144) {
+            if (NootRXMain::callback->attributes.isSonoma1404AndLater()) {
                 const LookupPatchPlus patches[] = {
                     {&kextRadeonX6810HWLibs, kGcSetFwEntryInfoOriginal14_4, kGcSetFwEntryInfoOriginalMask14_4,
                         kGcSetFwEntryInfoPatched14_4, kGcSetFwEntryInfoPatchedMask14_4, 1},
@@ -272,7 +299,7 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
                 };
                 PANIC_COND(!LookupPatchPlus::applyAll(patcher, patches, slide, size), "HWLibs",
                     "Failed to apply Navi 22 patches (<14.4)");
-                if (getKernelVersion() >= KernelVersion::Ventura) {
+                if (NootRXMain::callback->attributes.isVenturaAndLater()) {
                     const LookupPatchPlus patch {&kextRadeonX6810HWLibs, kSdmaInitFunctionPointerOriginal,
                         kSdmaInitFunctionPointerOriginalMask, kSdmaInitFunctionPointerPatched, 1};
                     PANIC_COND(!patch.apply(patcher, slide, size), "HWLibs",
@@ -280,6 +307,18 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
                 }
             }
         }
+
+        if (ADDPR(debugEnabled)) {
+            auto *targetKext =
+                NootRXMain::callback->attributes.isNavi21() ? &kextRadeonX6800HWLibs : &kextRadeonX6810HWLibs;
+            const LookupPatchPlus patches[] = {
+                {targetKext, kAtiPowerPlayServicesConstructorOriginal, kAtiPowerPlayServicesConstructorPatched, 1},
+                {targetKext, kAmdLogPspOriginal, kAmdLogPspOriginalMask, kAmdLogPspPatched, 1},
+            };
+            PANIC_COND(!LookupPatchPlus::applyAll(patcher, patches, slide, size), "HWLibs",
+                "Failed to apply debug enablement patches");
+        }
+
         return true;
     }
 
@@ -287,27 +326,16 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
 }
 
 const char *HWLibs::wrapGetMatchProperty() {
-    if (NootRXMain::callback->chipType == ChipType::Navi21) { return "Load6800"; }
+    if (NootRXMain::callback->attributes.isNavi21()) { return "Load6800"; }
     return "Load6810";
 }
 
-CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *param3, void *param4) {
+CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *outData, void *outResponse) {
     char filename[128];
     bzero(filename, sizeof(filename));
     auto &size = getMember<UInt32>(cmd, 0xC);
     auto cmdID = getMember<AMDPSPCommand>(cmd, 0x0);
-    size_t off;
-    switch (getKernelVersion()) {
-        case KernelVersion::BigSur... KernelVersion::Monterey:
-            off = 0xAF8;
-            break;
-        case KernelVersion::Ventura... KernelVersion::Sequoia:
-            off = NootRXMain::callback->chipType == ChipType::Navi21 ? 0xAF8 : 0xB48;
-            break;
-        default:
-            PANIC("HWLibs", "Unsupported kernel version %d", getKernelVersion());
-    }
-    auto *data = getMember<UInt8 *>(ctx, off);
+    auto *data = callback->pspCommandDataField.get(ctx);
 
     switch (cmdID) {
         case kPSPCommandLoadTA: {
@@ -333,31 +361,24 @@ CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *param3, void *
                 break;
             }
 
-            return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, param3, param4);
+            return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, outData, outResponse);
         }
         case kPSPCommandLoadASD: {
             strncpy(filename, "psp_asd.bin", 12);
             break;
         }
         case kPSPCommandLoadIPFW: {
-            auto *prefix = NootRXMain::getGCPrefix();
+            auto *prefix = NootRXMain::callback->getGCPrefix();
             auto uCodeID = getMember<AMDUCodeID>(cmd, 0x10);
             switch (uCodeID) {
                 case kUCodeSMU:
-                    switch (NootRXMain::callback->chipType) {
-                        case ChipType::Navi21:
-                            // strncpy(filename, "navi21_smc_firmware.bin", 24);
-                            // break;
-                            return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, param3,
-                                param4);
-                        case ChipType::Navi22:
-                            strncpy(filename, "navi22_smc_firmware.bin", 24);
-                            break;
-                        case ChipType::Navi23:
-                            strncpy(filename, "navi23_smc_firmware.bin", 24);
-                            break;
-                        default:
-                            PANIC("HWLibs", "Unknown chip type");
+                    if (NootRXMain::callback->attributes.isNavi21()) {
+                        return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, outData,
+                            outResponse);
+                    } else if (NootRXMain::callback->attributes.isNavi22()) {
+                        strncpy(filename, "navi22_smc_firmware.bin", 24);
+                    } else {
+                        strncpy(filename, "navi23_smc_firmware.bin", 24);
                     }
                     break;
                 case kUCodeCE:
@@ -391,18 +412,12 @@ CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *param3, void *
                     snprintf(filename, sizeof(filename), "%srlc_ucode.bin", prefix);
                     break;
                 case kUCodeSDMA0:
-                    switch (NootRXMain::callback->chipType) {
-                        case ChipType::Navi21:
-                            strncpy(filename, "sdma_5_2_ucode.bin", 19);
-                            break;
-                        case ChipType::Navi22:
-                            strncpy(filename, "sdma_5_2_2_ucode.bin", 21);
-                            break;
-                        case ChipType::Navi23:
-                            strncpy(filename, "sdma_5_2_4_ucode.bin", 21);
-                            break;
-                        default:
-                            PANIC("HWLibs", "Unknown chip type");
+                    if (NootRXMain::callback->attributes.isNavi21()) {
+                        strncpy(filename, "sdma_5_2_ucode.bin", 19);
+                    } else if (NootRXMain::callback->attributes.isNavi22()) {
+                        strncpy(filename, "sdma_5_2_2_ucode.bin", 21);
+                    } else {
+                        strncpy(filename, "sdma_5_2_4_ucode.bin", 21);
                     }
                     break;
                 case kUCodeVCN0:
@@ -445,37 +460,55 @@ CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *param3, void *
                     snprintf(filename, sizeof(filename), "%sse3_tap_delays.bin", prefix);
                     break;
                 case kUCodeDMCUB:
-                    switch (NootRXMain::callback->chipType) {
-                        case ChipType::Navi21:
-                            [[fallthrough]];
-                        case ChipType::Navi22:
-                            strncpy(filename, "atidmcub_instruction_dcn30.bin", 31);
-                            break;
-                        case ChipType::Navi23:
-                            strncpy(filename, "atidmcub_instruction_dcn302.bin", 32);
-                            break;
-                        default:
-                            PANIC("HWLibs", "Unknown chip type");
+                    if (NootRXMain::callback->attributes.isNavi23()) {
+                        strncpy(filename, "atidmcub_instruction_dcn302.bin", 32);
+                    } else {
+                        strncpy(filename, "atidmcub_instruction_dcn30.bin", 31);
                     }
                     break;
                 default:
-                    return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, param3, param4);
+                    return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, outData,
+                        outResponse);
             }
             break;
         }
         default:
-            return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, param3, param4);
+            return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, outData, outResponse);
     }
 
     const auto &fw = getFWByName(filename);
     memcpy(data, fw.data, fw.length);
     size = fw.length;
 
-    return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, param3, param4);
+    return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, outData, outResponse);
 }
 
 CAILResult HWLibs::wrapSmu1107SendMessageWithParameter(void *smum, UInt32 msgId, UInt32 param) {
     if (param == 0x10000 && (msgId == 0x2A || msgId == 0x2B)) { return kCAILResultSuccess; }
     return FunctionCast(wrapSmu1107SendMessageWithParameter, callback->orgSmu1107SendMessageWithParameter)(smum, msgId,
         param);
+}
+
+CAILResult HWLibs::wrapCosReadConfigurationSetting(void *cosHandle, CosReadConfigurationSettingInput *readCfgInput,
+    CosReadConfigurationSettingOutput *readCfgOutput) {
+    if (readCfgInput != nullptr && readCfgInput->settingName != nullptr && readCfgInput->outPtr != nullptr &&
+        readCfgInput->outLen == 4) {
+        if (strncmp(readCfgInput->settingName, "PP_LogLevel", 12) == 0 ||
+            strncmp(readCfgInput->settingName, "PP_LogSource", 13) == 0 ||
+            strncmp(readCfgInput->settingName, "PP_LogDestination", 18) == 0 ||
+            strncmp(readCfgInput->settingName, "PP_LogField", 12) == 0) {
+            *static_cast<UInt32 *>(readCfgInput->outPtr) = 0xFFFFFFFF;
+            if (readCfgOutput != nullptr) { readCfgOutput->settingLen = 4; }
+            return kCAILResultSuccess;
+        }
+        if (strncmp(readCfgInput->settingName, "PP_DumpRegister", 16) == 0 ||
+            strncmp(readCfgInput->settingName, "PP_DumpSMCTable", 16) == 0 ||
+            strncmp(readCfgInput->settingName, "PP_LogDumpTableBuffers", 23) == 0) {
+            *static_cast<UInt32 *>(readCfgInput->outPtr) = 1;
+            if (readCfgOutput != nullptr) { readCfgOutput->settingLen = 4; }
+            return kCAILResultSuccess;
+        }
+    }
+    return FunctionCast(wrapCosReadConfigurationSetting, callback->orgCosReadConfigurationSetting)(cosHandle,
+        readCfgInput, readCfgOutput);
 }
