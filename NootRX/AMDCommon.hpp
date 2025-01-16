@@ -217,13 +217,13 @@ enum AMDUCodeID : UInt32 {
 
 struct CosReadConfigurationSettingInput {
     const char *settingName;
-    uint32_t settingType;
-    uint32_t outLen;
+    UInt32 settingType;
+    UInt32 outLen;
     void *outPtr;
 };
 
 struct CosReadConfigurationSettingOutput {
-    uint32_t settingLen;
+    UInt32 settingLen;
 };
 
 //-------- AMD Catalyst Constants --------//
@@ -231,7 +231,7 @@ struct CosReadConfigurationSettingOutput {
 constexpr UInt64 DEVICE_CAP_ENTRY_REV_DONT_CARE = 0xDEADCAFE;
 
 static const UInt32 ddiCapsNavi2Universal[16] = {0x800001, 0x1FE, 0x0, 0x0, 0x200, 0x8000000, 0x8000000, 0x2,
-    0x200A0101, 0xA20600, 0x42040028, 0x0, 0x0, 0x0, 0x0, 0x0};
+    0x200A0101, 0xA20600, 0x42004028, 0x0, 0x0, 0x0, 0x0, 0x0};
 
 //---- Golden Settings ----//
 

@@ -52,8 +52,6 @@
 		</dict>
 		<key>aty_properties</key>
 		<dict>
-			<key>DalEarlyTps1Pattern</key>
-			<integer>1</integer>
 			<key>DalDisableDisplayID2</key>
 			<integer>1</integer>
 			<key>DalDisableLTTPR</key>
@@ -79,7 +77,7 @@
 			<key>PP_Run_DcBTC</key>
 			<integer>0</integer>
 			<key>PP_WorkLoadPolicyMask</key>
-			<integer>32</integer>
+			<integer>16</integer>
 			<key>SMU_DisallowedFeatures</key>
 			<integer>4</integer>
 		</dict>
@@ -121,16 +119,12 @@
 		</dict>
 		<key>aty_properties</key>
 		<dict>
-			<key>DalEarlyTps1Pattern</key>
-			<integer>1</integer>
 			<key>DalDisableDisplayID2</key>
 			<integer>1</integer>
 			<key>DalDisableLTTPR</key>
 			<integer>1</integer>
 			<key>DalEnablePspFwLoad</key>
 			<integer>0</integer>
-			<key>DalForceEnumEDP</key>
-			<integer>1</integer>
 			<key>DalSkipDetectionLT</key>
 			<integer>1</integer>
 			<key>PP_DisableClockStretcher</key>
@@ -150,7 +144,7 @@
 			<key>PP_Run_DcBTC</key>
 			<integer>0</integer>
 			<key>PP_WorkLoadPolicyMask</key>
-			<integer>32</integer>
+			<integer>16</integer>
 			<key>SMU_DisallowedFeatures</key>
 			<integer>4</integer>
 		</dict>
