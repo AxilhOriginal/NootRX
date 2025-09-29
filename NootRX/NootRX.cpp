@@ -40,6 +40,7 @@ void NootRXMain::init() {
             if (getKernelMinorVersion() >= 4) { this->attributes.setSonoma1404AndLater(); }
             break;
         case KernelVersion::Sequoia:
+        case KernelVersion::Tahoe:
             this->attributes.setVenturaAndLater();
             this->attributes.setSonoma1404AndLater();
             break;
@@ -169,6 +170,16 @@ void NootRXMain::processPatcher(KernelPatcher &patcher) {
         this->orgAddDrivers};
     PANIC_COND(!patcher.routeMultipleLong(KernelPatcher::KernelID, &request, 1), "NootRX",
         "Failed to route addDrivers");
+
+    if (ADDPR(debugEnabled)) {
+        this->dGPU->setProperty("PP_LogLevel", 0xFFFFFFFF, 32);
+        this->dGPU->setProperty("PP_LogSource", 0xFFFFFFFF, 32);
+        this->dGPU->setProperty("PP_LogDestination", 0xFFFFFFFF, 32);
+        this->dGPU->setProperty("PP_LogField", 0xFFFFFFFF, 32);
+        this->dGPU->setProperty("PP_DumpRegister", TRUE, 32);
+        this->dGPU->setProperty("PP_DumpSMCTable", TRUE, 32);
+        this->dGPU->setProperty("PP_LogDumpTableBuffers", TRUE, 32);
+    }
 }
 
 static const char *getDriverXMLForBundle(const char *bundleIdentifier, size_t *len) {

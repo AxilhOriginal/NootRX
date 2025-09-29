@@ -119,15 +119,6 @@ bool HWLibs::processKext(KernelPatcher &patcher, size_t id, mach_vm_address_t sl
             PANIC_COND(!request.route(patcher, id, slide, size), "HWLibs", "Failed to route psp_cmd_km_submit");
         }
 
-        if (ADDPR(debugEnabled)) {
-            RouteRequestPlus request = {"__ZN14AmdTtlServices27cosReadConfigurationSettingEPvP36cos_read_configuration_"
-                                        "setting_inputP37cos_read_configuration_setting_output",
-                wrapCosReadConfigurationSetting, this->orgCosReadConfigurationSetting,
-                kCosReadConfigurationSettingPattern, kCosReadConfigurationSettingPatternMask};
-            PANIC_COND(!request.route(patcher, id, slide, size), "HWLibs",
-                "Failed to route cosReadConfigurationSetting");
-        }
-
         if (NootRXMain::callback->attributes.isNavi22()) {
             if (NootRXMain::callback->attributes.isSonoma1404AndLater()) {
                 RouteRequestPlus request = {"_smu_11_0_7_send_message_with_parameter",
@@ -380,10 +371,9 @@ CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *outData, void 
 
             return FunctionCast(wrapPspCmdKmSubmit, callback->orgPspCmdKmSubmit)(ctx, cmd, outData, outResponse);
         }
-        case kPSPCommandLoadASD: {
+        case kPSPCommandLoadASD:
             strncpy(filename, "psp_asd.bin", 12);
             break;
-        }
         case kPSPCommandLoadIPFW: {
             auto *prefix = NootRXMain::callback->getGCPrefix();
             auto uCodeID = getMember<AMDUCodeID>(cmd, 0x10);
@@ -407,14 +397,10 @@ CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *outData, void 
                     snprintf(filename, sizeof(filename), "%sme_ucode.bin", prefix);
                     break;
                 case kUCodeMEC1:
-                    snprintf(filename, sizeof(filename), "%smec_ucode.bin", prefix);
-                    break;
                 case kUCodeMEC2:
                     snprintf(filename, sizeof(filename), "%smec_ucode.bin", prefix);
                     break;
                 case kUCodeMEC1JT:
-                    snprintf(filename, sizeof(filename), "%smec_jt_ucode.bin", prefix);
-                    break;
                 case kUCodeMEC2JT:
                     snprintf(filename, sizeof(filename), "%smec_jt_ucode.bin", prefix);
                     break;
@@ -437,8 +423,6 @@ CAILResult HWLibs::wrapPspCmdKmSubmit(void *ctx, void *cmd, void *outData, void 
                     }
                     break;
                 case kUCodeVCN0:
-                    strncpy(filename, "ativvaxy_vcn3.dat", 18);
-                    break;
                 case kUCodeVCN1:
                     strncpy(filename, "ativvaxy_vcn3.dat", 18);
                     break;
@@ -503,28 +487,4 @@ CAILResult HWLibs::wrapSmu1107SendMessageWithParameter(void *smum, UInt32 msgId,
     if (param == 0x10000 && (msgId == 0x2A || msgId == 0x2B)) { return kCAILResultSuccess; }
     return FunctionCast(wrapSmu1107SendMessageWithParameter, callback->orgSmu1107SendMessageWithParameter)(smum, msgId,
         param);
-}
-
-CAILResult HWLibs::wrapCosReadConfigurationSetting(void *cosHandle, CosReadConfigurationSettingInput *readCfgInput,
-    CosReadConfigurationSettingOutput *readCfgOutput) {
-    if (readCfgInput != nullptr && readCfgInput->settingName != nullptr && readCfgInput->outPtr != nullptr &&
-        readCfgInput->outLen == 4) {
-        if (strncmp(readCfgInput->settingName, "PP_LogLevel", 12) == 0 ||
-            strncmp(readCfgInput->settingName, "PP_LogSource", 13) == 0 ||
-            strncmp(readCfgInput->settingName, "PP_LogDestination", 18) == 0 ||
-            strncmp(readCfgInput->settingName, "PP_LogField", 12) == 0) {
-            *static_cast<UInt32 *>(readCfgInput->outPtr) = 0xFFFFFFFF;
-            if (readCfgOutput != nullptr) { readCfgOutput->settingLen = 4; }
-            return kCAILResultSuccess;
-        }
-        if (strncmp(readCfgInput->settingName, "PP_DumpRegister", 16) == 0 ||
-            strncmp(readCfgInput->settingName, "PP_DumpSMCTable", 16) == 0 ||
-            strncmp(readCfgInput->settingName, "PP_LogDumpTableBuffers", 23) == 0) {
-            *static_cast<UInt32 *>(readCfgInput->outPtr) = 1;
-            if (readCfgOutput != nullptr) { readCfgOutput->settingLen = 4; }
-            return kCAILResultSuccess;
-        }
-    }
-    return FunctionCast(wrapCosReadConfigurationSetting, callback->orgCosReadConfigurationSetting)(cosHandle,
-        readCfgInput, readCfgOutput);
 }
